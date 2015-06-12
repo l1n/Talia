@@ -1,0 +1,15 @@
+{
+  "name": "tali",
+  "version": "1.0.0",
+  "description": "Infra Bot",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Lin <__@umbc.edu>",
+  "license": "ISC",
+  "dependencies": {
+    "cheerio": "^0.19.0",
+    "slack-node": "^0.1.3"
+  }
+}
