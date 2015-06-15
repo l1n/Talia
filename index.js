@@ -2,7 +2,12 @@ var http = require('http');
 var request = require('request');
 var cheerio = require('cheerio');
 var Slack = require('slack-client');
-apiToken = require('api.json').slack;
+var apiToken;
+try {
+    apiToken = require('./api.json').slack;
+} catch (e) {
+    apiToken = require('../data/api.json').slack;
+};
 
 bot = {
 	'nick': 'talia',
