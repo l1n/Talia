@@ -10,46 +10,47 @@ try {
 };
 
 bot = {
-	'nick': 'talia',
+    'nick': 'talia',
     'slackid': 'U06953J6B',
-	'fullname': 'Talia Praesul',
-	'regex': {},
+    'fullname': 'Talia Praesul',
+    'regex': {},
 };
 
-bot.regex.beginsWithName = new RegExp("^[@]?"+bot.nick+"|^"+bot.fullname+"|^<@"+bot.slackid+">","i");
+bot.regex.beginsWithName = new RegExp("^(?:[@]?"+bot.nick+"|^"+bot.fullname+"|^<@"+bot.slackid+">)(.*?)$","i");
 
 trustLevel = {
-	'owner'     : 0,
-	'admin'     : 1,
-	'moderator' : 2,
-	'user'      : 3,
+    'owner'     : 0,
+    'admin'     : 1,
+    'moderator' : 2,
+    'user'      : 3,
 };
 
-authorizedUsers = {
-	'sda1' : {
-		'trustLevel' : trustLevel.owner,
-	},
-	'kherna1' : {
-		'trustLevel' : trustLevel.admin,
-	},
-	'gballan1' : {
-		'trustLevel' : trustLevel.admin,
-	},
-	'erude' : {
-		'trustLevel' : trustLevel.user,
-	},
+users = {
+    'sda1' : {
+        'trustLevel' : trustLevel.owner,
+    },
+    'kherna1' : {
+        'trustLevel' : trustLevel.admin,
+    },
+    'gballan1' : {
+        'trustLevel' : trustLevel.admin,
+    },
+    'erude' : {
+        'trustLevel' : trustLevel.user,
+    },
 };
 
 subs = {
     'status' : {
         'trustLevel' : trustLevel.user,
         'callback' : true,
-        // Argument 0 is site
+        // Argument 0 is sub
+        // Argument 1 is site
         'function' : function (callback, args) {
-            var site = sites[args[0]];
+            var site = args[0].data.sites[args[1]];
             if (site != null)
                 try {
-                    request(site, sites.callback).on('error', function (e) {
+                    request(site, site.callback).on('error', function (e) {
                         return callback('Error streaming request: '+e);
                     });
                 } catch (e) {
@@ -61,15 +62,17 @@ subs = {
                 'www': {
                     'baseUrl': 'https://www.umbc.edu/',
                     'url': ['/'],
-                    'callback': function (res) {
-                        $ = cheerio.html(res.body);
-                        return callback($( "a[title='UMBC: An Honors University in Maryland']" )?"Main Page is up":"Main page is down (returned "+res.errorCode+")");
+                    'callback': function (error, response, body) {
+                        $ = cheerio.html(body);
+                        return callback($( "a[title='UMBC: An Honors University in Maryland']" )?"Main Page is up":"Main page is down (returned "+error+")");
                     },
                 },
                 'webauth': {
                     'baseUrl': 'https://webauth.umbc.edu/',
                     'url': ['/umbcLogin?action=index'],
-                    'callback': function (res) {
+                    'callback': function (error, response, body) {
+                        $ = cheerio.html(body);
+                        return callback($( "a[title='UMBC: An Honors University in Maryland']" )?"Main Page is up":"Main page is down (returned "+error+")");
                     },
                 }
             },
@@ -77,10 +80,12 @@ subs = {
     },
 };
 function myMessage(message, channel) {
-    return !channel.is_channel || (message.text.match(bot.regex.beginsWithName) != null && (message.text.match(bot.rege.beginsWithName).size > 1));
+    return !channel.is_channel || (message.text.match(bot.regex.beginsWithName) != null && (message.text.match(bot.regex.beginsWithName).size > 1));
 }
 
 slack = new Slack(apiToken, true, true);
+http  = http.createServer(function (request, response) {
+});
 
 slack.on("open", function() {
     console.log("Registered to slack as @"+slack.self.name+" in "+slack.team.name);
@@ -89,18 +94,25 @@ slack.on("open", function() {
 slack.on("message", function (message) {
     var channel = slack.getChannelGroupOrDMByID(message.channel);
     var user    = slack.getUserByID(message.user);
-    if (myMessage(message, channel) && (authorizedUsers[user.name] != null) && (authorizedUsers[user.name].trustLevel <= trustLevel.user)) {
-        var parse = message.text.split(' ');
-        if (!channel.is_channel) parse.unshift('tali');
-        parse[1] = parse[1].toLowerCase();
-        if (subs[parse[1]] != null && authorizedUsers[user.name].trustLevel <= subs[parse[1]].trustLevel) {
-            if (subs[parse[1]].callback) {
-                subs[parse[1]]['function'](function (response) {
+    if (myMessage(message, channel) && (users[user.name] != null) && (users[user.name].trustLevel <= trustLevel.user)) {
+        var parse;
+        try {
+            parse = message.text.match(bot.regex.beginsWithName)[1].split(' ');
+        } catch (e) {
+            parse = message.text.split(' ');
+        }
+        console.log(parse);
+        var sub = subs[parse[0]];
+        if (sub != null && users[user.name].trustLevel <= sub.trustLevel) {
+            parse.shift();
+            parse.unshift(sub);
+            if (sub.callback) {
+                sub['function'](function (response) {
                     console.log(response);
                     channel.send(response);
-                }, parse.slice(2));
+                }, parse);
             } else {
-                channel.send(subs[parse[1]]['function'](parse.slice(2)));
+                channel.send(sub['function'](parse));
             }
         }
     }
@@ -110,4 +122,5 @@ slack.on("error", function (error) {
     return console.error("Error: "+error);
 });
 
+http.listen(OPENSHIFT_NODEJS_IP, OPENSHIFT_NODEJS_PORT);
 slack.login();
